@@ -1,3 +1,5 @@
+from project.database import engine
+from project.models import Base
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -5,10 +7,20 @@ from fastapi.templating import Jinja2Templates
 from google import genai
 import os
 from dotenv import load_dotenv
-
+from project.database import SessionLocal
+from project.models import UserPlan
+from fastapi import Depends
+from sqlalchemy.orm import Session
 load_dotenv()
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 app = FastAPI()
+Base.metadata.create_all(bind=engine)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -29,7 +41,8 @@ async def generate_plan(
     weight: float = Form(...),
     height: float = Form(...),
     goal: str = Form(...),
-    activity_level: str = Form(...)
+    activity_level: str = Form(...),
+db: Session = Depends(get_db)
 ):
     try:
         prompt = f"""
@@ -55,6 +68,18 @@ async def generate_plan(
             contents=prompt,
         )
         plan_content = response.text
+                
+        db_obj = UserPlan(
+            age=age,
+            weight=weight,
+            height=height,
+            goal=goal,
+            activity=activity_level,
+            plan_text=plan_content
+        )
+
+        db.add(db_obj)
+        db.commit()
 
     except Exception as e:
         plan_content = f"An error occurred while generating the plan: {str(e)}"
