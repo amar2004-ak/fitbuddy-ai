@@ -63,3 +63,6 @@ async def generate_plan(
     return templates.TemplateResponse(
         request=request, name="plan.html", context={"plan": plan_content}
     )
+    @app.get("/")
+  def home():
+    return {"message": "FitBuddy AI is running 🚀"}
