@@ -63,6 +63,8 @@ async def generate_plan(
     return templates.TemplateResponse(
         request=request, name="plan.html", context={"plan": plan_content}
     )
-    @app.get("/")
-  def home():
-    return {"message": "FitBuddy AI is running 🚀"}
+  from fastapi.responses import HTMLResponse
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
