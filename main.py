@@ -11,6 +11,14 @@ from project.database import SessionLocal
 from project.models import UserPlan
 from fastapi import Depends
 from sqlalchemy.orm import Session
+import logging
+from fastapi import HTTPException
+from pydantic import BaseModel
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 def get_db():
@@ -42,8 +50,9 @@ async def generate_plan(
     height: float = Form(...),
     goal: str = Form(...),
     activity_level: str = Form(...),
-db: Session = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
+    logger.info("Plan generation starts")
     try:
         prompt = f"""
         Act as an expert fitness coach. Create a customized, highly detailed fitness plan using markdown formatting based on the following user details:
@@ -53,12 +62,13 @@ db: Session = Depends(get_db)
         - Objective: {goal}
         - Current Activity Level: {activity_level}
 
-        The plan should include:
-        1.  A brief motivating introduction.
-        2.  A weekly workout schedule with specific exercises, sets, and reps.
-        3.  Nutritional guidelines and suggestions.
-        4.  Tips for recovery and consistency.
-        5.  A concluding encouraging message.
+        The plan must include:
+        1. A brief motivating introduction with clear headings.
+        2. A 7-day structured workout schedule with specific exercises, sets, and reps.
+        3. Nutrition tips based on the goal ({goal}).
+        4. Recovery tips (e.g., sleep, stretching).
+        5. Safety precautions to prevent injury.
+        6. A concluding encouraging message.
 
         Use structured markdown elements such as headings, lists, bold text, and tables to make the plan easy to read and visually appealing.
         """
@@ -68,6 +78,7 @@ db: Session = Depends(get_db)
             contents=prompt,
         )
         plan_content = response.text
+        logger.info("Plan generation succeeds")
                 
         db_obj = UserPlan(
             age=age,
@@ -81,13 +92,40 @@ db: Session = Depends(get_db)
         db.add(db_obj)
         db.commit()
 
-    except Exception as e:
-        plan_content = f"An error occurred while generating the plan: {str(e)}"
-        print(f"Error: {e}")
+        return templates.TemplateResponse(
+            request=request, name="plan.html", context={"plan": plan_content}
+        )
 
-    return templates.TemplateResponse(
-        request=request, name="plan.html", context={"plan": plan_content}
-    )
+    except Exception as e:
+        logger.error(f"An error occurred while generating the plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate fitness plan: {str(e)}")
+
+class FeedbackRequest(BaseModel):
+    feedback: str
+    previous_plan: str
+
+@app.post("/feedback")
+async def regenerate_plan(request: FeedbackRequest):
+    logger.info("Feedback regeneration starts")
+    try:
+        prompt = f"""
+        Act as an expert fitness coach. Based on the following user feedback:
+        "{request.feedback}"
+
+        Update this previous fitness plan:
+        {request.previous_plan}
+
+        Return a revised, highly detailed fitness plan in markdown format. It must continue to include a 7-day structured workout plan, nutrition tips, recovery tips, and safety precautions.
+        """
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        logger.info("Feedback regeneration succeeds")
+        return {"updated_plan": response.text}
+    except Exception as e:
+        logger.error(f"An error occurred during feedback regeneration: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to regenerate fitness plan based on feedback: {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
