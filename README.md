@@ -29,7 +29,7 @@ FitBuddy is a web-based AI application that generates personalized 7-day workout
 git clone https://github.com/amar2004-ak/fitbuddy-ai.git
 cd fitbuddy-ai
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ---
 
 ⭐ If you like this project, give it a star!
