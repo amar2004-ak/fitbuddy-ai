@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your FitBuddy Plan</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Include marked.js to render the markdown sent by Gemini -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="glow-container"></div>
+    <main class="glass-card results-container">
+        <header class="results-header">
+            <h1 class="gradient-text">Your Custom Plan</h1>
+            <a href="/" class="back-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                New Plan
+            </a>
+        </header>
+        
+        <!-- We store the raw markdown here in a hidden div, then render it -->
+        <div id="raw-markdown" style="display: none;">{{ plan }}</div>
+        
+        <div id="rendered-plan" class="markdown-body">
+            <!-- Rendered markdown will appear here -->
+        </div>
+    </main>
+
+    <script>
+        // Parse the markdown using the marked library
+        document.addEventListener('DOMContentLoaded', () => {
+            const rawMarkdown = document.getElementById('raw-markdown').innerText;
+            const renderedHtml = marked.parse(rawMarkdown);
+            document.getElementById('rendered-plan').innerHTML = renderedHtml;
+        });
+    </script>
+</body>
+</html>
