@@ -19,7 +19,7 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 @app.get("/", response_class=HTMLResponse)
 async def read_item(request: Request):
     return templates.TemplateResponse(
-        request=request, name="index.html", context={}
+        request=request, name="index.html", context={"request": request}
     )
 
 @app.post("/generate", response_class=HTMLResponse)
@@ -63,7 +63,6 @@ async def generate_plan(
     return templates.TemplateResponse(
         request=request, name="plan.html", context={"plan": plan_content}
     )
-  from fastapi.responses import HTMLResponse
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
