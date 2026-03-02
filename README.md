@@ -4,6 +4,7 @@ FitBuddy is a web-based AI application that generates personalized 7-day workout
 
 ## 🚀 Live Demo
 🔗 https://fitbuddy-ai-1.onrender.com
+> ⚠️ Note: This demo is hosted on Render free tier. It may take 30–60 seconds to wake up on the first load.
 
 ## ✨ Features
 
