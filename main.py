@@ -61,22 +61,45 @@ async def generate_plan(
     logger.info("Plan generation starts")
     try:
         prompt = f"""
-        Act as an expert fitness coach. Create a customized, highly detailed fitness plan using markdown formatting based on the following user details:
+        Act as an expert fitness coach. Create a customized fitness plan using markdown formatting based on the following user details:
         - Age: {age}
         - Weight: {weight} kg
         - Height: {height} cm
         - Objective: {goal}
         - Current Activity Level: {activity_level}
 
-        The plan must include:
-        1. A brief motivating introduction with clear headings.
-        2. A 7-day structured workout schedule with specific exercises, sets, and reps.
-        3. Nutrition tips based on the goal ({goal}).
-        4. Recovery tips (e.g., sleep, stretching).
-        5. Safety precautions to prevent injury.
-        6. A concluding encouraging message.
+        STRICT CONTENT REQUIREMENTS:
+        - Total word count must be between 800 and 950 words. If output exceeds 950 words, rewrite concisely.
+        - Keep tone modern, confident, and professional. Make it attractive but not dramatic.
+        - Avoid emotional storytelling and exaggerated motivational phrases. Keep intro short and impactful.
+        - Use clear and sharp sentences. Avoid repetition. Keep it structured and easy to read.
 
-        Use structured markdown elements such as headings, lists, bold text, and tables to make the plan easy to read and visually appealing.
+        FORMATTING RULES (VERY IMPORTANT):
+        - Do NOT use numbered section titles (no 1., 2., 3.).
+        - Do NOT number sub-points. Use ONLY round bullet points (•) for all lists.
+        - No nested numbering. No decorative headings. Keep formatting clean and minimal.
+        - Keep it fully compatible with existing styling.
+
+        STRUCTURE TO FOLLOW EXACTLY (Do NOT add or rename sections):
+
+        # Your Custom Plan
+
+        (Write a short introduction here, maximum 80 words. Do not use a heading for this introduction.)
+
+        ## 7-Day Structured Workout Schedule
+        (You MUST use this exact table format: Day | Focus | Exercises | Sets | Reps)
+
+        ## Nutrition Guidelines
+        (Bullet points only)
+
+        ## Recovery Guidelines
+        (Bullet points only)
+
+        ## Safety Precautions
+        (Bullet points only)
+
+        ## Concluding Note
+        (Maximum 60 words for the note. End with exactly ONE short motivational sentence under 20 words.)
         """
 
         response = client.models.generate_content(
@@ -138,7 +161,41 @@ async def regenerate_plan(
         User Feedback:
         {feedback_text}
 
-        Generate an improved structured 7-day workout plan.
+        Generate an improved structured 7-day workout plan based on the feedback.
+        You MUST adhere to the following strict requirements:
+
+        STRICT CONTENT REQUIREMENTS:
+        - Total word count must be between 800 and 950 words. If output exceeds 950 words, rewrite concisely.
+        - Keep tone modern, confident, and professional. Make it attractive but not dramatic.
+        - Avoid emotional storytelling and exaggerated motivational phrases. Keep intro short and impactful.
+        - Use clear and sharp sentences. Avoid repetition. Keep it structured and easy to read.
+
+        FORMATTING RULES (VERY IMPORTANT):
+        - Do NOT use numbered section titles (no 1., 2., 3.).
+        - Do NOT number sub-points. Use ONLY round bullet points (•) for all lists.
+        - No nested numbering. No decorative headings. Keep formatting clean and minimal.
+        - Keep it fully compatible with existing styling.
+
+        STRUCTURE TO FOLLOW EXACTLY (Do NOT add or rename sections):
+
+        # Your Custom Plan
+
+        (Write a short introduction here, maximum 80 words. Do not use a heading for this introduction.)
+
+        ## 7-Day Structured Workout Schedule
+        (You MUST use this exact table format: Day | Focus | Exercises | Sets | Reps)
+
+        ## Nutrition Guidelines
+        (Bullet points only)
+
+        ## Recovery Guidelines
+        (Bullet points only)
+
+        ## Safety Precautions
+        (Bullet points only)
+
+        ## Concluding Note
+        (Maximum 60 words for the note. End with exactly ONE short motivational sentence under 20 words.)
         """
         
         response = client.models.generate_content(
