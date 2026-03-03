@@ -60,46 +60,76 @@ async def generate_plan(
 ):
     logger.info("Plan generation starts")
     try:
+        if goal == "Muscle Gain / Hypertrophy":
+            heading = "# Your Muscle Gain Blueprint: Build Size & Strength"
+        elif goal == "Weight Loss / Fat Burning":
+            heading = "# Your Fat Loss Strategy: Burn Smart & Stay Lean"
+        elif goal == "Endurance & Stamina":
+            heading = "# Your Endurance Upgrade Plan: Build Stamina & Power"
+        elif goal == "General Health & Fitness":
+            heading = "# Your Complete Fitness Foundation Plan"
+        elif goal == "Flexibility & Mobility":
+            heading = "# Your Mobility & Flexibility Enhancement Plan"
+        else:
+            heading = f"# Your Custom Plan for {goal}"
+
         prompt = f"""
-        Act as an expert fitness coach. Create a customized fitness plan using markdown formatting based on the following user details:
+        Act as an expert fitness coach. Create a structured, modern, and professional fitness plan in clean markdown format based on the following user details:
         - Age: {age}
         - Weight: {weight} kg
         - Height: {height} cm
-        - Objective: {goal}
-        - Current Activity Level: {activity_level}
+        - Primary Goal: {goal}
+        - Activity Level: {activity_level}
 
-        STRICT CONTENT REQUIREMENTS:
-        - Total word count must be between 800 and 950 words. If output exceeds 950 words, rewrite concisely.
-        - Keep tone modern, confident, and professional. Make it attractive but not dramatic.
-        - Avoid emotional storytelling and exaggerated motivational phrases. Keep intro short and impactful.
-        - Use clear and sharp sentences. Avoid repetition. Keep it structured and easy to read.
+        STRICT RULES:
+        1. The FIRST heading must be exactly this:
+        {heading}
+        2. Do NOT use or repeat the text "Your Custom Plan".
+        3. The heading must feel strong, premium, and motivating — but not dramatic.
+        4. Keep total word count between 800-950 words.
+        5. Avoid repeating user stats multiple times.
+        6. Keep tone confident, clear, and professional.
+        7. No storytelling. No emotional exaggeration.
+        8. Clean formatting only.
 
-        FORMATTING RULES (VERY IMPORTANT):
-        - Do NOT use numbered section titles (no 1., 2., 3.).
-        - Do NOT number sub-points. Use ONLY round bullet points (•) for all lists.
-        - No nested numbering. No decorative headings. Keep formatting clean and minimal.
-        - Keep it fully compatible with existing styling.
+        After the heading, write a short 3-4 line professional introduction paragraph.
 
-        STRUCTURE TO FOLLOW EXACTLY (Do NOT add or rename sections):
+        Then structure EXACTLY like this:
 
-        # Your Custom Plan
+        ---
 
-        (Write a short introduction here, maximum 80 words. Do not use a heading for this introduction.)
+        ## 1. 7-Day Structured Workout Schedule
 
-        ## 7-Day Structured Workout Schedule
-        (You MUST use this exact table format: Day | Focus | Exercises | Sets | Reps)
+        Use a clean markdown table:
 
-        ## Nutrition Guidelines
-        (Bullet points only)
+        Day | Focus | Exercises | Sets | Reps
 
-        ## Recovery Guidelines
-        (Bullet points only)
+        Provide a properly structured 7-day plan aligned with the selected goal.
 
-        ## Safety Precautions
-        (Bullet points only)
+        ---
 
-        ## Concluding Note
-        (Maximum 60 words for the note. End with exactly ONE short motivational sentence under 20 words.)
+        ## 2. Nutrition Guidelines
+
+        Use bullet points only.
+        Keep explanations concise and practical.
+        Align nutrition advice specifically with {goal}.
+
+        ---
+
+        ## 3. Recovery Strategy
+
+        Use bullet points only.
+
+        ---
+
+        ## 4. Safety & Injury Prevention
+
+        Use bullet points only.
+
+        ---
+
+        End with EXACTLY ONE short motivational sentence under 20 words.
+        No extra lines after that.
         """
 
         response = client.models.generate_content(
@@ -154,6 +184,20 @@ async def regenerate_plan(
 
         old_plan = db_obj.plan_text
         
+        goal = db_obj.goal
+        if goal == "Muscle Gain / Hypertrophy":
+            heading = "# Your Muscle Gain Blueprint: Build Size & Strength"
+        elif goal == "Weight Loss / Fat Burning":
+            heading = "# Your Fat Loss Strategy: Burn Smart & Stay Lean"
+        elif goal == "Endurance & Stamina":
+            heading = "# Your Endurance Upgrade Plan: Build Stamina & Power"
+        elif goal == "General Health & Fitness":
+            heading = "# Your Complete Fitness Foundation Plan"
+        elif goal == "Flexibility & Mobility":
+            heading = "# Your Mobility & Flexibility Enhancement Plan"
+        else:
+            heading = f"# Your Custom Plan for {goal}"
+
         prompt = f"""
         Previous Workout Plan:
         {old_plan}
@@ -164,38 +208,55 @@ async def regenerate_plan(
         Generate an improved structured 7-day workout plan based on the feedback.
         You MUST adhere to the following strict requirements:
 
-        STRICT CONTENT REQUIREMENTS:
-        - Total word count must be between 800 and 950 words. If output exceeds 950 words, rewrite concisely.
-        - Keep tone modern, confident, and professional. Make it attractive but not dramatic.
-        - Avoid emotional storytelling and exaggerated motivational phrases. Keep intro short and impactful.
-        - Use clear and sharp sentences. Avoid repetition. Keep it structured and easy to read.
+        STRICT RULES:
+        1. The FIRST heading must be exactly this:
+        {heading}
+        2. Do NOT use or repeat the text "Your Custom Plan".
+        3. The heading must feel strong, premium, and motivating — but not dramatic.
+        4. Keep total word count between 800-950 words.
+        5. Avoid repeating user stats multiple times.
+        6. Keep tone confident, clear, and professional.
+        7. No storytelling. No emotional exaggeration.
+        8. Clean formatting only.
 
-        FORMATTING RULES (VERY IMPORTANT):
-        - Do NOT use numbered section titles (no 1., 2., 3.).
-        - Do NOT number sub-points. Use ONLY round bullet points (•) for all lists.
-        - No nested numbering. No decorative headings. Keep formatting clean and minimal.
-        - Keep it fully compatible with existing styling.
+        After the heading, write a short 3-4 line professional introduction paragraph.
 
-        STRUCTURE TO FOLLOW EXACTLY (Do NOT add or rename sections):
+        Then structure EXACTLY like this:
 
-        # Your Custom Plan
+        ---
 
-        (Write a short introduction here, maximum 80 words. Do not use a heading for this introduction.)
+        ## 1. 7-Day Structured Workout Schedule
 
-        ## 7-Day Structured Workout Schedule
-        (You MUST use this exact table format: Day | Focus | Exercises | Sets | Reps)
+        Use a clean markdown table:
 
-        ## Nutrition Guidelines
-        (Bullet points only)
+        Day | Focus | Exercises | Sets | Reps
 
-        ## Recovery Guidelines
-        (Bullet points only)
+        Provide a properly structured 7-day plan aligned with the selected goal.
 
-        ## Safety Precautions
-        (Bullet points only)
+        ---
 
-        ## Concluding Note
-        (Maximum 60 words for the note. End with exactly ONE short motivational sentence under 20 words.)
+        ## 2. Nutrition Guidelines
+
+        Use bullet points only.
+        Keep explanations concise and practical.
+        Align nutrition advice specifically with {goal}.
+
+        ---
+
+        ## 3. Recovery Strategy
+
+        Use bullet points only.
+
+        ---
+
+        ## 4. Safety & Injury Prevention
+
+        Use bullet points only.
+
+        ---
+
+        End with EXACTLY ONE short motivational sentence under 20 words.
+        No extra lines after that.
         """
         
         response = client.models.generate_content(
