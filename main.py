@@ -1,19 +1,16 @@
-from project.database import engine
-from project.models import Base
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from google import genai
 import os
-from dotenv import load_dotenv
-from project.database import SessionLocal
-from project.models import UserPlan
-from fastapi import Depends
-from sqlalchemy.orm import Session
 import logging
-from fastapi import HTTPException
-from pydantic import BaseModel
+from dotenv import load_dotenv
+
+from project.database import engine, SessionLocal
+from project.models import Base, UserPlan
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,11 +24,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
 app = FastAPI()
 Base.metadata.create_all(bind=engine)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
 templates = Jinja2Templates(directory="templates")
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
@@ -91,42 +88,63 @@ async def generate_plan(
 
         db.add(db_obj)
         db.commit()
+        db.refresh(db_obj)
 
-        return templates.TemplateResponse(
-            request=request, name="plan.html", context={"plan": plan_content}
-        )
+        return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
 
     except Exception as e:
         logger.error(f"An error occurred while generating the plan: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate fitness plan: {str(e)}")
 
-class FeedbackRequest(BaseModel):
-    feedback: str
-    previous_plan: str
+@app.get("/plan/{plan_id}", response_class=HTMLResponse)
+async def view_plan(request: Request, plan_id: int, db: Session = Depends(get_db)):
+    db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Plan not found")
+        
+    return templates.TemplateResponse(
+        request=request, name="plan.html", context={"plan": db_obj.plan_text, "plan_id": db_obj.id}
+    )
 
-@app.post("/feedback")
-async def regenerate_plan(request: FeedbackRequest):
+@app.post("/feedback", response_class=HTMLResponse)
+async def regenerate_plan(
+    request: Request,
+    plan_id: int = Form(...),
+    feedback_text: str = Form(...),
+    db: Session = Depends(get_db)
+):
     logger.info("Feedback regeneration starts")
     try:
+        # Fetch the previously generated plan from SQLite
+        db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+        if not db_obj:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        old_plan = db_obj.plan_text
+        
         prompt = f"""
-        Act as an expert fitness coach. Based on the following user feedback:
-        "{request.feedback}"
+        Previous Workout Plan:
+        {old_plan}
 
-        Update this previous fitness plan:
-        {request.previous_plan}
+        User Feedback:
+        {feedback_text}
 
-        Return a revised, highly detailed fitness plan in markdown format. It must continue to include a 7-day structured workout plan, nutrition tips, recovery tips, and safety precautions.
+        Generate an improved structured 7-day workout plan.
         """
+        
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=prompt,
         )
+        new_plan_content = response.text
         logger.info("Feedback regeneration succeeds")
-        return {"updated_plan": response.text}
+        
+        # Update the database with the improved plan
+        db_obj.plan_text = new_plan_content
+        db.commit()
+        
+        # Proper redirect after regeneration
+        return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
     except Exception as e:
         logger.error(f"An error occurred during feedback regeneration: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to regenerate fitness plan based on feedback: {str(e)}")
-
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
