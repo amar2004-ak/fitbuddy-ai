@@ -9,6 +9,63 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
     <!-- Include marked.js to render the markdown sent by Gemini -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @media print {
+            @page {
+                size: A4;
+                margin: 20mm;
+            }
+
+            html,
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            * {
+                background: transparent !important;
+                color: #000000 !important;
+                box-shadow: none !important;
+                text-shadow: none !important;
+            }
+
+            button,
+            form,
+            textarea,
+            input,
+            select,
+            .back-btn {
+                display: none !important;
+            }
+
+            h1,
+            h2,
+            h3,
+            h4,
+            h5,
+            h6 {
+                page-break-after: avoid;
+            }
+
+            img,
+            svg,
+            table,
+            figure,
+            pre,
+            blockquote {
+                page-break-inside: avoid;
+            }
+
+            p,
+            ul,
+            ol {
+                orphans: 3;
+                widows: 3;
+            }
+        }
+    </style>
 </head>
 
 <body>
@@ -46,9 +103,9 @@
                     <button type="submit" class="submit-btn"
                         style="align-self: flex-start; background: linear-gradient(135deg, #6e8efb, #a777e3); color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: all 0.3s ease;">Regenerate
                         Plan</button>
-                    <a href="/download/{{ plan_id }}"
+                    <button type="button" onclick="window.print()"
                         style="text-decoration: none; align-self: flex-start; background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: all 0.3s ease;">Download
-                        PDF</a>
+                        PDF</button>
                 </div>
             </form>
         </div>
