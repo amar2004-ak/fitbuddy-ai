@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import google.generativeai as genai
+from google import genai
 import os
 import logging
 import io
@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from project.database import engine, SessionLocal
 from project.models import Base, UserPlan
 
-# Configure logging
+# Configure loggingv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ Base.metadata.create_all(bind=engine)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 @app.get("/", response_class=HTMLResponse)
 async def read_item(request: Request):
