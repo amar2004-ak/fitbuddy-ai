@@ -60,76 +60,23 @@ async def generate_plan(
 ):
     logger.info("Plan generation starts")
     try:
-        if goal == "Muscle Gain / Hypertrophy":
-            heading = "# Your Muscle Gain Blueprint: Build Size & Strength"
-        elif goal == "Weight Loss / Fat Burning":
-            heading = "# Your Fat Loss Strategy: Burn Smart & Stay Lean"
-        elif goal == "Endurance & Stamina":
-            heading = "# Your Endurance Upgrade Plan: Build Stamina & Power"
-        elif goal == "General Health & Fitness":
-            heading = "# Your Complete Fitness Foundation Plan"
-        elif goal == "Flexibility & Mobility":
-            heading = "# Your Mobility & Flexibility Enhancement Plan"
-        else:
-            heading = f"# Your Custom Plan for {goal}"
-
         prompt = f"""
-        Act as an expert fitness coach. Create a structured, modern, and professional fitness plan in clean markdown format based on the following user details:
+        Act as an expert fitness coach. Create a customized, highly detailed fitness plan using markdown formatting based on the following user details:
         - Age: {age}
         - Weight: {weight} kg
         - Height: {height} cm
-        - Primary Goal: {goal}
-        - Activity Level: {activity_level}
+        - Objective: {goal}
+        - Current Activity Level: {activity_level}
 
-        STRICT RULES:
-        1. The FIRST heading must be exactly this:
-        {heading}
-        2. Do NOT use or repeat the text "Your Custom Plan".
-        3. The heading must feel strong, premium, and motivating — but not dramatic.
-        4. Keep total word count between 800-950 words.
-        5. Avoid repeating user stats multiple times.
-        6. Keep tone confident, clear, and professional.
-        7. No storytelling. No emotional exaggeration.
-        8. Clean formatting only.
+        The plan must include:
+        1. A brief motivating introduction with clear headings.
+        2. A 7-day structured workout schedule with specific exercises, sets, and reps.
+        3. Nutrition tips based on the goal ({goal}).
+        4. Recovery tips (e.g., sleep, stretching).
+        5. Safety precautions to prevent injury.
+        6. A concluding encouraging message.
 
-        After the heading, write a short 3-4 line professional introduction paragraph.
-
-        Then structure EXACTLY like this:
-
-        ---
-
-        ## 1. 7-Day Structured Workout Schedule
-
-        Use a clean markdown table:
-
-        Day | Focus | Exercises | Sets | Reps
-
-        Provide a properly structured 7-day plan aligned with the selected goal.
-
-        ---
-
-        ## 2. Nutrition Guidelines
-
-        Use bullet points only.
-        Keep explanations concise and practical.
-        Align nutrition advice specifically with {goal}.
-
-        ---
-
-        ## 3. Recovery Strategy
-
-        Use bullet points only.
-
-        ---
-
-        ## 4. Safety & Injury Prevention
-
-        Use bullet points only.
-
-        ---
-
-        End with EXACTLY ONE short motivational sentence under 20 words.
-        No extra lines after that.
+        Use structured markdown elements such as headings, lists, bold text, and tables to make the plan easy to read and visually appealing.
         """
 
         response = client.models.generate_content(
@@ -184,20 +131,6 @@ async def regenerate_plan(
 
         old_plan = db_obj.plan_text
         
-        goal = db_obj.goal
-        if goal == "Muscle Gain / Hypertrophy":
-            heading = "# Your Muscle Gain Blueprint: Build Size & Strength"
-        elif goal == "Weight Loss / Fat Burning":
-            heading = "# Your Fat Loss Strategy: Burn Smart & Stay Lean"
-        elif goal == "Endurance & Stamina":
-            heading = "# Your Endurance Upgrade Plan: Build Stamina & Power"
-        elif goal == "General Health & Fitness":
-            heading = "# Your Complete Fitness Foundation Plan"
-        elif goal == "Flexibility & Mobility":
-            heading = "# Your Mobility & Flexibility Enhancement Plan"
-        else:
-            heading = f"# Your Custom Plan for {goal}"
-
         prompt = f"""
         Previous Workout Plan:
         {old_plan}
@@ -205,62 +138,11 @@ async def regenerate_plan(
         User Feedback:
         {feedback_text}
 
-        Generate an improved structured 7-day workout plan based on the feedback.
-        You MUST adhere to the following strict requirements:
-
-        STRICT RULES:
-        1. The FIRST heading must be exactly this:
-        {heading}
-        2. Do NOT use or repeat the text "Your Custom Plan".
-        3. The heading must feel strong, premium, and motivating — but not dramatic.
-        4. Keep total word count between 800-950 words.
-        5. Avoid repeating user stats multiple times.
-        6. Keep tone confident, clear, and professional.
-        7. No storytelling. No emotional exaggeration.
-        8. Clean formatting only.
-
-        After the heading, write a short 3-4 line professional introduction paragraph.
-
-        Then structure EXACTLY like this:
-
-        ---
-
-        ## 1. 7-Day Structured Workout Schedule
-
-        Use a clean markdown table:
-
-        Day | Focus | Exercises | Sets | Reps
-
-        Provide a properly structured 7-day plan aligned with the selected goal.
-
-        ---
-
-        ## 2. Nutrition Guidelines
-
-        Use bullet points only.
-        Keep explanations concise and practical.
-        Align nutrition advice specifically with {goal}.
-
-        ---
-
-        ## 3. Recovery Strategy
-
-        Use bullet points only.
-
-        ---
-
-        ## 4. Safety & Injury Prevention
-
-        Use bullet points only.
-
-        ---
-
-        End with EXACTLY ONE short motivational sentence under 20 words.
-        No extra lines after that.
+        Generate an improved structured 7-day workout plan.
         """
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
         )
         new_plan_content = response.text
@@ -316,4 +198,4 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
         headers={
             "Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"
         },
-    )
+    ) 
