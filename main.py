@@ -11,6 +11,11 @@ import io
 import textwrap
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+from fastapi.responses import StreamingResponse
+from io import BytesIO
 from dotenv import load_dotenv
 
 from project.database import engine, SessionLocal
@@ -157,48 +162,40 @@ async def regenerate_plan(
 async def download_plan(plan_id: int, db: Session = Depends(get_db)):
     db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
     if not db_obj:
-        raise HTTPException(status_code=404, detail="Plan not found")
-        
-    packet = io.BytesIO()
-    c = canvas.Canvas(packet, pagesize=letter)
-    width, height = letter
-    
-    # Title
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(72, height - 72, "FitBuddy AI Fitness Plan")
-    
-    # Body
-    text_object = c.beginText(72, height - 100)
-    text_object.setFont("Helvetica", 11)
-    
-    clean_text = db_obj.plan_text
+        return {"error": "Plan not found"}
 
-# Basic markdown cleanup
-clean_text = clean_text.replace("**", "")
-clean_text = clean_text.replace("###", "")
-clean_text = clean_text.replace("##", "")
-clean_text = clean_text.replace("<br>", "")
-clean_text = clean_text.replace("|", " ")
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
 
-lines = clean_text.split("\n")
-for line in lines:
-        wrapped_lines = textwrap.wrap(line, width=90)
-        if not wrapped_lines:
-            text_object.textLine("") # Handle empty lines
-        for wrapped_line in wrapped_lines:
-            if text_object.getY() < 72:  # Pagination
-                c.drawText(text_object)
-                c.showPage()
-                text_object = c.beginText(72, height - 72)
-                text_object.setFont("Helvetica", 11)
-            text_object.textLine(wrapped_line)
-            
-    c.drawText(text_object)
-    c.save()
-    packet.seek(0)
-    
-    return Response(
-        content=packet.getvalue(),
+    styles = getSampleStyleSheet()
+    normal_style = styles["Normal"]
+
+    lines = db_obj.plan_text.split("\n")
+
+    for line in lines:
+        # Table row detect
+        if "|" in line and "---" not in line:
+            cells = [cell.strip() for cell in line.split("|") if cell.strip()]
+            if cells:
+                table = Table([cells])
+                table.setStyle(TableStyle([
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ]))
+                elements.append(table)
+                elements.append(Spacer(1, 10))
+        else:
+            elements.append(Paragraph(line, normal_style))
+            elements.append(Spacer(1, 10))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"}
+        headers={
+            "Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"
+        },
     )
