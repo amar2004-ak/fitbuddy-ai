@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,34 +10,46 @@
     <!-- Include marked.js to render the markdown sent by Gemini -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
+
 <body>
     <div class="glow-container"></div>
     <main class="glass-card results-container">
         <header class="results-header">
             <h1 class="gradient-text">Your Custom Plan</h1>
             <a href="/" class="back-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
                     <line x1="19" y1="12" x2="5" y2="12"></line>
                     <polyline points="12 19 5 12 12 5"></polyline>
                 </svg>
                 New Plan
             </a>
         </header>
-        
+
         <!-- We store the raw markdown here in a hidden div, then render it -->
         <div id="raw-markdown" style="display: none;">{{ plan }}</div>
-        
+
         <div id="rendered-plan" class="markdown-body">
             <!-- Rendered markdown will appear here -->
         </div>
 
         <!-- Feedback section for Plan Regeneration -->
-        <div class="feedback-section" style="margin-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1.5rem;">
+        <div class="feedback-section"
+            style="margin-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1.5rem;">
             <h3 style="margin-bottom: 1rem; color: #fff;">Help Us Improve Your Plan</h3>
             <form action="/feedback" method="post" style="display: flex; flex-direction: column; gap: 1rem;">
                 <input type="hidden" name="plan_id" value="{{ plan_id }}">
-                <textarea name="feedback_text" rows="4" placeholder="e.g. Make it more intense, I don't like running..." required style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.05); color: #fff; font-family: 'Outfit', sans-serif; resize: vertical;"></textarea>
-                <button type="submit" class="submit-btn" style="align-self: flex-start; background: linear-gradient(135deg, #6e8efb, #a777e3); color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: all 0.3s ease;">Regenerate Plan</button>
+                <textarea name="feedback_text" rows="4" placeholder="e.g. Make it more intense, I don't like running..."
+                    required
+                    style="width: 100%; padding: 1rem; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.05); color: #fff; font-family: 'Outfit', sans-serif; resize: vertical;"></textarea>
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" class="submit-btn"
+                        style="align-self: flex-start; background: linear-gradient(135deg, #6e8efb, #a777e3); color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: all 0.3s ease;">Regenerate
+                        Plan</button>
+                    <a href="/download/{{ plan_id }}"
+                        style="text-decoration: none; align-self: flex-start; background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.8rem 1.5rem; border-radius: 8px; cursor: pointer; font-weight: 600; font-family: 'Outfit', sans-serif; transition: all 0.3s ease;">Download
+                        PDF</a>
+                </div>
             </form>
         </div>
     </main>
@@ -50,4 +63,5 @@
         });
     </script>
 </body>
+
 </html>

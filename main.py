@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from google import genai
 import os
 import logging
+import io
+import textwrap
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 from dotenv import load_dotenv
 
 from project.database import engine, SessionLocal
@@ -148,3 +152,44 @@ async def regenerate_plan(
     except Exception as e:
         logger.error(f"An error occurred during feedback regeneration: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to regenerate fitness plan based on feedback: {str(e)}")
+
+@app.get("/download/{plan_id}")
+async def download_plan(plan_id: int, db: Session = Depends(get_db)):
+    db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Plan not found")
+        
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=letter)
+    width, height = letter
+    
+    # Title
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(72, height - 72, "FitBuddy AI Fitness Plan")
+    
+    # Body
+    text_object = c.beginText(72, height - 100)
+    text_object.setFont("Helvetica", 11)
+    
+    lines = db_obj.plan_text.split('\n')
+    for line in lines:
+        wrapped_lines = textwrap.wrap(line, width=90)
+        if not wrapped_lines:
+            text_object.textLine("") # Handle empty lines
+        for wrapped_line in wrapped_lines:
+            if text_object.getY() < 72:  # Pagination
+                c.drawText(text_object)
+                c.showPage()
+                text_object = c.beginText(72, height - 72)
+                text_object.setFont("Helvetica", 11)
+            text_object.textLine(wrapped_line)
+            
+    c.drawText(text_object)
+    c.save()
+    packet.seek(0)
+    
+    return Response(
+        content=packet.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"}
+    )
