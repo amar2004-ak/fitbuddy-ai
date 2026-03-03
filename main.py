@@ -171,8 +171,17 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
     text_object = c.beginText(72, height - 100)
     text_object.setFont("Helvetica", 11)
     
-    lines = db_obj.plan_text.split('\n')
-    for line in lines:
+    clean_text = db_obj.plan_text
+
+# Basic markdown cleanup
+clean_text = clean_text.replace("**", "")
+clean_text = clean_text.replace("###", "")
+clean_text = clean_text.replace("##", "")
+clean_text = clean_text.replace("<br>", "")
+clean_text = clean_text.replace("|", " ")
+
+lines = clean_text.split("\n")
+for line in lines:
         wrapped_lines = textwrap.wrap(line, width=90)
         if not wrapped_lines:
             text_object.textLine("") # Handle empty lines
