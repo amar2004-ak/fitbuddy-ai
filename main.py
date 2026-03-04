@@ -80,7 +80,7 @@ async def generate_plan(
         """
 
         response = client.models.generate_content(
-            model='gemini-1.5-flash-001',
+            model='gemini-1.5-flash',
             contents=prompt,
         )
         plan_content = response.text
@@ -142,7 +142,7 @@ async def regenerate_plan(
         """
         
         response = client.models.generate_content(
-            model='gemini-1.5-flash-001',
+            model='gemini-1.5-flash',
             contents=prompt,
         )
         new_plan_content = response.text
