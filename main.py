@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from google import genai
+from google.genai.errors import ClientError
 import os
 import logging
 import io
@@ -99,6 +100,11 @@ async def generate_plan(
 
         return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
 
+    except ClientError as e:
+        logger.error(f"Gemini API Client Error: {str(e)}")
+        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            raise HTTPException(status_code=429, detail="The AI service is currently busy (quota exceeded). Please try again in a few minutes.")
+        raise HTTPException(status_code=400, detail=f"AI generation error: {str(e)}")
     except Exception as e:
         logger.error(f"An error occurred while generating the plan: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate fitness plan: {str(e)}")
@@ -152,6 +158,11 @@ async def regenerate_plan(
         
         # Proper redirect after regeneration
         return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
+    except ClientError as e:
+        logger.error(f"Gemini API Client Error during regeneration: {str(e)}")
+        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            raise HTTPException(status_code=429, detail="The AI service is currently busy (quota exceeded). Please try again in a few minutes.")
+        raise HTTPException(status_code=400, detail=f"AI regeneration error: {str(e)}")
     except Exception as e:
         logger.error(f"An error occurred during feedback regeneration: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to regenerate fitness plan based on feedback: {str(e)}")
