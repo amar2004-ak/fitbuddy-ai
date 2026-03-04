@@ -1,32 +1,48 @@
-from fastapi import FastAPI, Request, Form, Depends, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-from google import genai  # Ensure you ran: pip install google-genai
 import os
 import logging
 import time
 from io import BytesIO
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-
+from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+from google import genai
+from google.genai import types  # Required for API versioning fix
 from dotenv import load_dotenv
 
-# Assuming these are in your local directory
+# PDF Generation Imports
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+
+# Local Project Imports
 from project.database import engine, SessionLocal
 from project.models import Base, UserPlan
 
-# Logging setup
+# Initialize Environment and Logging
+load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+# Create Database Tables
+Base.metadata.create_all(bind=engine)
 
-# Database session dependency
+app = FastAPI()
+
+# Mount Static and Templates
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+# --- CRITICAL FIX: FORCING STABLE API VERSION ---
+# This resolves the 404 NOT_FOUND error seen in Render logs
+client = genai.Client(
+    api_key=os.environ.get("GOOGLE_API_KEY"),
+    http_options=types.HttpOptions(api_version='v1')
+)
+
+# Database Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -34,58 +50,32 @@ def get_db():
     finally:
         db.close()
 
-app = FastAPI()
-
-# Create tables
-Base.metadata.create_all(bind=engine)
-
-# Static files & Templates
-# Ensure these folders exist in your project root!
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-
-# Gemini client initialization
-api_key = os.environ.get("GOOGLE_API_KEY")
-if not api_key:
-    logger.error("GOOGLE_API_KEY not found in environment variables!")
-client = genai.Client(api_key=api_key)
-
-# --- Logic Functions ---
-
+# Gemini Generation with Retry Logic
 def generate_with_retry(prompt: str):
-    """Retries the Gemini API call with exponential backoff."""
-    max_retries = 3
-    for attempt in range(max_retries):
+    """Attempts to generate content with a brief delay on failure."""
+    for attempt in range(3):
         try:
-            # Note: For the 'google-genai' SDK, the syntax is client.models.generate
             response = client.models.generate_content(
-                model="gemini-1.5-flash",
+                model="gemini-1.5-flash", 
                 contents=prompt
             )
-            
-            if not response.text:
-                raise ValueError("Empty response from Gemini")
-                
-            return response.text
-
+            if response.text:
+                return response.text
         except Exception as e:
-            logger.warning(f"Attempt {attempt + 1} failed: {e}")
-            if attempt < max_retries - 1:
-                # Wait longer each time (10s, 20s)
-                time.sleep(10 * (attempt + 1))
-            else:
-                logger.error("All Gemini retries exhausted.")
-                raise e
+            logger.error(f"Attempt {attempt+1} failed: {e}")
+            # Short sleep to prevent Render timeout during retries
+            time.sleep(2) 
+            
+    raise Exception("Gemini API failed after 3 attempts. Please check your API key and quota.")
 
-# --- Routes ---
+# --- ROUTES ---
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.post("/generate", response_class=HTMLResponse)
+@app.post("/generate")
 async def generate_plan(
-    request: Request,
     age: int = Form(...),
     weight: float = Form(...),
     height: float = Form(...),
@@ -93,16 +83,17 @@ async def generate_plan(
     activity_level: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    prompt = f"""
-    Create a detailed 7-day fitness plan for a {age} year old.
-    Stats: {weight}kg, {height}cm. Goal: {goal}. Activity Level: {activity_level}.
-    Format the response clearly with headings for each day. 
-    Include specific workouts, diet tips, and recovery advice.
-    """
-
+    prompt = (
+        f"Create a professional 7-day fitness plan for a {age} year old. "
+        f"Stats: {weight}kg, {height}cm. Goal: {goal}. Activity Level: {activity_level}. "
+        f"Include specific workouts and daily nutrition tips."
+    )
+    
     try:
+        # Generate plan from AI
         plan_content = generate_with_retry(prompt)
 
+        # Save to Database
         db_obj = UserPlan(
             age=age,
             weight=weight,
@@ -111,7 +102,6 @@ async def generate_plan(
             activity=activity_level,
             plan_text=plan_content
         )
-
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
@@ -119,9 +109,9 @@ async def generate_plan(
         return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
 
     except Exception as e:
-        logger.error(f"Error generating plan: {e}")
-        # Return a more descriptive error to the user
-        raise HTTPException(status_code=500, detail=f"AI Service Error: {str(e)}")
+        logger.error(f"Generation error: {e}")
+        # Return the error message to the UI
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/plan/{plan_id}", response_class=HTMLResponse)
 async def view_plan(request: Request, plan_id: int, db: Session = Depends(get_db)):
@@ -142,13 +132,14 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter)
-    elements = []
     styles = getSampleStyleSheet()
-
-    # Simple text to PDF conversion
-    for line in db_obj.plan_text.split("\n"):
+    
+    elements = [Paragraph(f"FitBuddy: 7-Day {db_obj.goal} Plan", styles['Title'])]
+    
+    # Format the text for the PDF
+    for line in db_obj.plan_text.split('\n'):
         if line.strip():
-            elements.append(Paragraph(line, styles["Normal"]))
+            elements.append(Paragraph(line, styles['Normal']))
             elements.append(Spacer(1, 10))
 
     doc.build(elements)
@@ -157,5 +148,5 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=fitbuddy_plan.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"}
     )
