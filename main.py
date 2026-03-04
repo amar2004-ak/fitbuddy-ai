@@ -39,7 +39,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 Base.metadata.create_all(bind=engine)
 client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
-
+logger.info("API KEY loaded: %s", bool(os.environ.get("GOOGLE_API_KEY")))
 @app.get("/", response_class=HTMLResponse)
 async def read_item(request: Request):
     return templates.TemplateResponse(
