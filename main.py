@@ -35,6 +35,8 @@ def get_db():
         db.close()
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
 Base.metadata.create_all(bind=engine)
 client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
 
