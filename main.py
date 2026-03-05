@@ -1,33 +1,46 @@
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request, Form, Depends, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from google import genai
 from google.genai.errors import ClientError
 import os
 import logging
-import io
-import textwrap
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.lib import colors
-from fastapi.responses import StreamingResponse
 from io import BytesIO
 from dotenv import load_dotenv
+
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
 
 from project.database import engine, SessionLocal
 from project.models import Base, UserPlan
 
-# Configure loggingv
+
+# ---------------- LOGGING ----------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+# ---------------- ENV ----------------
 load_dotenv()
 
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+logger.info("API KEY loaded: %s", bool(os.environ.get("GEMINI_API_KEY")))
+
+
+# ---------------- FASTAPI SETUP ----------------
+app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+Base.metadata.create_all(bind=engine)
+
+
+# ---------------- DATABASE ----------------
 def get_db():
     db = SessionLocal()
     try:
@@ -35,18 +48,17 @@ def get_db():
     finally:
         db.close()
 
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
-Base.metadata.create_all(bind=engine)
-client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
-logger.info("API KEY loaded: %s", bool(os.environ.get("GOOGLE_API_KEY")))
+
+# ---------------- HOME ----------------
 @app.get("/", response_class=HTMLResponse)
 async def read_item(request: Request):
     return templates.TemplateResponse(
-        request=request, name="index.html", context={"request": request}
+        "index.html",
+        {"request": request}
     )
 
+
+# ---------------- GENERATE PLAN ----------------
 @app.post("/generate", response_class=HTMLResponse)
 async def generate_plan(
     request: Request,
@@ -57,34 +69,55 @@ async def generate_plan(
     activity_level: str = Form(...),
     db: Session = Depends(get_db)
 ):
+
     logger.info("Plan generation starts")
+
+    # -------- CACHE CHECK --------
+    existing_plan = db.query(UserPlan).filter(
+        UserPlan.age == age,
+        UserPlan.weight == weight,
+        UserPlan.height == height,
+        UserPlan.goal == goal,
+        UserPlan.activity == activity_level
+    ).first()
+
+    if existing_plan:
+        logger.info("Returning cached plan")
+        return RedirectResponse(url=f"/plan/{existing_plan.id}", status_code=303)
+
     try:
+
         prompt = f"""
-        Act as an expert fitness coach. Create a customized, highly detailed fitness plan using markdown formatting based on the following user details:
-        - Age: {age}
-        - Weight: {weight} kg
-        - Height: {height} cm
-        - Objective: {goal}
-        - Current Activity Level: {activity_level}
+Act as an expert fitness coach.
 
-        The plan must include:
-        1. A brief motivating introduction with clear headings.
-        2. A 7-day structured workout schedule with specific exercises, sets, and reps.
-        3. Nutrition tips based on the goal ({goal}).
-        4. Recovery tips (e.g., sleep, stretching).
-        5. Safety precautions to prevent injury.
-        6. A concluding encouraging message.
+User details:
+Age: {age}
+Weight: {weight} kg
+Height: {height} cm
+Goal: {goal}
+Activity Level: {activity_level}
 
-        Use structured markdown elements such as headings, lists, bold text, and tables to make the plan easy to read and visually appealing.
-        """
+Create a structured 7-day workout plan including:
+
+1. Short motivating introduction
+2. Weekly workout schedule with sets and reps
+3. Nutrition tips
+4. Recovery tips
+5. Safety precautions
+6. Encouraging conclusion
+
+Format using markdown headings and lists.
+"""
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
+            model="gemini-2.5-flash",
+            contents=prompt
         )
+
         plan_content = response.text
-        logger.info("Plan generation succeeds")
-                
+
+        logger.info("Plan generation success")
+
         db_obj = UserPlan(
             age=age,
             weight=weight,
@@ -101,24 +134,47 @@ async def generate_plan(
         return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
 
     except ClientError as e:
-        logger.error(f"Gemini API Client Error: {str(e)}")
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-            raise HTTPException(status_code=429, detail="The AI service is currently busy (quota exceeded). Please try again in a few minutes.")
-        raise HTTPException(status_code=400, detail=f"AI generation error: {str(e)}")
-    except Exception as e:
-        logger.error(f"An error occurred while generating the plan: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate fitness plan: {str(e)}")
 
+        logger.error(f"Gemini API error: {str(e)}")
+
+        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            raise HTTPException(
+                status_code=429,
+                detail="AI service quota exceeded. Please try later."
+            )
+
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception as e:
+
+        logger.error(f"Unexpected error: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate fitness plan"
+        )
+
+
+# ---------------- VIEW PLAN ----------------
 @app.get("/plan/{plan_id}", response_class=HTMLResponse)
 async def view_plan(request: Request, plan_id: int, db: Session = Depends(get_db)):
+
     db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+
     if not db_obj:
         raise HTTPException(status_code=404, detail="Plan not found")
-        
+
     return templates.TemplateResponse(
-        request=request, name="plan.html", context={"plan": db_obj.plan_text, "plan_id": db_obj.id}
+        "plan.html",
+        {
+            "request": request,
+            "plan": db_obj.plan_text,
+            "plan_id": db_obj.id
+        }
     )
 
+
+# ---------------- FEEDBACK REGENERATE ----------------
 @app.post("/feedback", response_class=HTMLResponse)
 async def regenerate_plan(
     request: Request,
@@ -126,55 +182,67 @@ async def regenerate_plan(
     feedback_text: str = Form(...),
     db: Session = Depends(get_db)
 ):
+
     logger.info("Feedback regeneration starts")
+
     try:
-        # Fetch the previously generated plan from SQLite
+
         db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+
         if not db_obj:
             raise HTTPException(status_code=404, detail="Plan not found")
 
         old_plan = db_obj.plan_text
-        
+
         prompt = f"""
-        Previous Workout Plan:
-        {old_plan}
+Previous workout plan:
 
-        User Feedback:
-        {feedback_text}
+{old_plan}
 
-        Generate an improved structured 7-day workout plan.
-        """
-        
+User feedback:
+
+{feedback_text}
+
+Generate an improved 7-day workout plan.
+"""
+
         response = client.models.generate_content(
-           model="gemini-2.0-flash",
-            contents=prompt,
+            model="gemini-2.5-flash",
+            contents=prompt
         )
-        new_plan_content = response.text
-        logger.info("Feedback regeneration succeeds")
-        
-        # Update the database with the improved plan
-        db_obj.plan_text = new_plan_content
-        db.commit()
-        
-        # Proper redirect after regeneration
-        return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
-    except ClientError as e:
-        logger.error(f"Gemini API Client Error during regeneration: {str(e)}")
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-            raise HTTPException(status_code=429, detail="The AI service is currently busy (quota exceeded). Please try again in a few minutes.")
-        raise HTTPException(status_code=400, detail=f"AI regeneration error: {str(e)}")
-    except Exception as e:
-        logger.error(f"An error occurred during feedback regeneration: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to regenerate fitness plan based on feedback: {str(e)}")
 
+        new_plan = response.text
+
+        db_obj.plan_text = new_plan
+        db.commit()
+
+        logger.info("Plan regenerated")
+
+        return RedirectResponse(url=f"/plan/{db_obj.id}", status_code=303)
+
+    except Exception as e:
+
+        logger.error(f"Regeneration error: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to regenerate plan"
+        )
+
+
+# ---------------- DOWNLOAD PDF ----------------
 @app.get("/download/{plan_id}")
 async def download_plan(plan_id: int, db: Session = Depends(get_db)):
+
     db_obj = db.query(UserPlan).filter(UserPlan.id == plan_id).first()
+
     if not db_obj:
-        return {"error": "Plan not found"}
+        raise HTTPException(status_code=404, detail="Plan not found")
 
     buffer = BytesIO()
+
     doc = SimpleDocTemplate(buffer, pagesize=letter)
+
     elements = []
 
     styles = getSampleStyleSheet()
@@ -183,22 +251,28 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
     lines = db_obj.plan_text.split("\n")
 
     for line in lines:
-        # Table row detect
+
         if "|" in line and "---" not in line:
+
             cells = [cell.strip() for cell in line.split("|") if cell.strip()]
-            if cells:
-                table = Table([cells])
-                table.setStyle(TableStyle([
-                    ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ]))
-                elements.append(table)
-                elements.append(Spacer(1, 10))
+
+            table = Table([cells])
+
+            table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 1, colors.black),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ]))
+
+            elements.append(table)
+
         else:
+
             elements.append(Paragraph(line, normal_style))
-            elements.append(Spacer(1, 10))
+
+        elements.append(Spacer(1, 10))
 
     doc.build(elements)
+
     buffer.seek(0)
 
     return StreamingResponse(
@@ -206,5 +280,5 @@ async def download_plan(plan_id: int, db: Session = Depends(get_db)):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f"attachment; filename=fitbuddy_plan_{plan_id}.pdf"
-        },
-    ) 
+        }
+    )
